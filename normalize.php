@@ -113,15 +113,39 @@ function normalize_civicrm_pre( $op, $objectName, $objectId, &$objectRef ) {
 
   if (in_array($objectName, array('Individual','Organization','Household'))) {
     $normalize->normalize_contact($objectRef);
+    $country = NULL;
     // for CiviCRM 4.2.2 & lower only
-    if (array_key_exists('phone', $objectRef) && is_array($objectRef['phone']))
-      foreach($objectRef['phone'] as &$phone)
-        $normalize->normalize_phone($phone);
+    if (array_key_exists('phone', $objectRef) && is_array($objectRef['phone'])) {
+      // Check if contact has an address.
+      if (!empty($objectRef['address'])) {
+        foreach ($objectRef['address'] as $add) {
+          if (!empty($add['is_primary']) && !empty($add['country_id'])) {
+            $country = CRM_Core_PseudoConstant::countryIsoCode()[$add['country_id']];
+            break;
+          }
+        }
+      }
+      foreach ($objectRef['phone'] as &$phone) {
+        $normalize->normalize_phone($phone, $country);
+      }
+    }
     if (array_key_exists('address', $objectRef) && is_array($objectRef['address']))
       foreach($objectRef['address'] as &$address)
         $normalize->normalize_address($address);
   } elseif ($objectName == 'Phone') {
-    $normalize->normalize_phone($objectRef);
+    $country = NULL;
+    // Check for country in primary address.
+    if (!empty($objectRef['contact_id'])) {
+      $add = civicrm_api3('Address', 'get', [
+        'contact_id' => $objectRef['contact_id'],
+        'is_primary' => 1,
+        'sequential' => 1,
+      ]);
+      if (!empty($add['values']) && !empty($add['values'][0]['country_id'])) {
+        $country = CRM_Core_PseudoConstant::countryIsoCode()[$add['values'][0]['country_id']];
+      }
+    }
+    $normalize->normalize_phone($objectRef, $country);
   } elseif ($objectName == 'Address') {
     $normalize->normalize_address($objectRef);
   }
