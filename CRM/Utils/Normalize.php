@@ -214,7 +214,7 @@ class CRM_Utils_Normalize {
    *   Name that needs to be reformatted
    */
 
-  function normalize_phone(&$phone) {
+  function normalize_phone(&$phone, $contactCountry = NULL) {
     if (empty($phone)) {
       return false;
     }
@@ -224,6 +224,9 @@ class CRM_Utils_Normalize {
     } // Should not be empty
 
     $country = ($this->_country ? $this->_country : 'US');
+    if (!empty($contactCountry)) {
+      $country = $contactCountry;
+    }
     $phoneUtil = PhoneNumberUtil::getInstance();
     try {
       $phoneProto = $phoneUtil->parse($input, $country);
@@ -547,11 +550,18 @@ class CRM_Utils_Normalize {
             if (!isset($orgPhoneValues['id']) || empty($orgPhoneValues['id']) || empty($orgPhoneValues['phone'])) {
               continue;
             }
-
             $formattedPhoneValues = $orgPhoneValues;
-
+            $country = NULL;
+            if (!empty($orgContactValues['address'])) {
+              foreach ($orgContactValues['address'] as $address) {
+                if (!empty($address['is_primary']) && !empty($address['country_id'])) {
+                  $country = CRM_Core_PseudoConstant::countryIsoCode()[$address['country_id']];
+                  break;
+                }
+              }
+            }
             //format phone fields
-            $normalization->normalize_phone($formattedPhoneValues);
+            $normalization->normalize_phone($formattedPhoneValues, $country);
 
             //do check for formatted difference, than only update.
             $formattedDiff = array_diff_assoc($orgPhoneValues, $formattedPhoneValues);
